@@ -10,13 +10,13 @@ namespace WebCrawler.Crawler
     {
 
         public Action<string> ProcessingStatusUpdateCallback { get; set; }
+        public int MaxNumberOfProcessing { get; set; }
 
         private ICollection<string> _urlsForProcessing = new List<string>();
         private ICollection<string> _urlsBeingProcessed = new List<string>();
         private ICollection<string> _urlsProcessed = new List<string>();
         private IProcessor _processor;
 
-        private int _maxNumberOfProcessing = 3;
         private readonly Random _random = new Random();
 
         public Scheduler(IProcessor processor)
@@ -26,8 +26,8 @@ namespace WebCrawler.Crawler
 
         public void ProcessFoundLinks(IEnumerable<string> links)
         {
-            var linksForProcessing = links.Where(link => 
-                                                   !_urlsProcessed.Contains(link) 
+            var linksForProcessing = links.Where(link =>
+                                                   !_urlsProcessed.Contains(link)
                                                 && !_urlsBeingProcessed.Contains(link)
                                                 && !_urlsForProcessing.Contains(link));
 
@@ -37,16 +37,16 @@ namespace WebCrawler.Crawler
 
         public void QueueUrlForProcessing(string url)
         {
-            if (_urlsBeingProcessed.Count < _maxNumberOfProcessing)
+            if (_urlsBeingProcessed.Count < MaxNumberOfProcessing)
             {
                 _urlsBeingProcessed.Add(url);
                 Task.Run(() => StartProcessingUrl(url));
-            }          
+            }
             else
                 _urlsForProcessing.Add(url);
         }
 
-        private void DequeueProcessedUrl(string url) 
+        private void DequeueProcessedUrl(string url)
         {
             _urlsBeingProcessed.Remove(url);
             _urlsProcessed.Add(url);
@@ -58,7 +58,7 @@ namespace WebCrawler.Crawler
                 _urlsBeingProcessed.Add(nextUrl);
                 Task.Run(() => StartProcessingUrl(nextUrl));
             }
-            else if(_urlsBeingProcessed.Count == 0)
+            else if (_urlsBeingProcessed.Count == 0)
             {
                 ProcessingStatusUpdateCallback($"Crawling finished, total pages crawled: {_urlsProcessed.Count}");
             }
@@ -70,7 +70,15 @@ namespace WebCrawler.Crawler
             ProcessingStatusUpdateCallback($"Sleeping for {sleepTime} miliseconds...");
             await Task.Delay(sleepTime);
 
-           await _processor.StartProcessing(url, ProcessFoundLinks, DequeueProcessedUrl);
+            try
+            {
+                await _processor.StartProcessing(url, ProcessFoundLinks, DequeueProcessedUrl);
+            }
+            catch(Exception e)
+            {
+                DequeueProcessedUrl(url);
+                ProcessingStatusUpdateCallback($"Error while processing {url}, error message: {e.Message}");
+            }            
         }
     }
 }

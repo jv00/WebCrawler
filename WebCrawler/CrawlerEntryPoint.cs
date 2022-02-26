@@ -13,12 +13,13 @@ namespace WebCrawler
             {
                 BaseUrl = baseUrl,
                 ProcessingStatusUpdateCallback = processingStatusUpdateCallback,
-                DataExporter = new DataExporterJsonFile()
+                DataExporter = new DataExporterJsonFile(),
             };
 
             Scheduler scheduler = new Scheduler(processor)
             {
-                ProcessingStatusUpdateCallback = processingStatusUpdateCallback
+                ProcessingStatusUpdateCallback = processingStatusUpdateCallback,
+                MaxNumberOfProcessing = 3
             };
 
             processingStatusUpdateCallback("Crawling started!");

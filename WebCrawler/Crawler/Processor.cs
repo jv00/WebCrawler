@@ -18,8 +18,8 @@ namespace WebCrawler.Crawler
 
         public async Task StartProcessing(string link, Action<IEnumerable<string>> processFoundLinks, Action<string> dequeueProcessedUrl)
         {
-             HtmlWeb web = new HtmlWeb();
-             var doc = await web.LoadFromWebAsync(link);
+            HtmlWeb web = new HtmlWeb();
+            var doc = await web.LoadFromWebAsync(link);
 
             var processedPage = new ProcessedPage();
 
@@ -35,11 +35,16 @@ namespace WebCrawler.Crawler
 
             processedPage = GetPageScriptLinks(doc, processedPage);
 
-           
+            processedPage = GetMetaTags(doc, processedPage);
+
+            processedPage = GetForms(doc, processedPage);
+
             var links = GetAllPageLinks(doc);
 
-            processFoundLinks(links);
-      
+            processedPage.Links = links;
+
+            processFoundLinks(links.Where(l => l.Href.StartsWith(BaseUrl)).Select(l => l.Href));
+
             await DataExporter.ExportProcessedPage(processedPage);
 
             ProcessingStatusUpdateCallback($"Result exported for URL: {processedPage.Url}");
@@ -94,11 +99,56 @@ namespace WebCrawler.Crawler
             return processedPage;
         }
 
-        private IEnumerable<string> GetAllPageLinks(HtmlDocument document)
+        private IEnumerable<Link> GetAllPageLinks(HtmlDocument document)
         {
             return document.DocumentNode.Descendants("a")
-                                  .Select(a => a.GetAttributeValue("href", null))
-                                  .Where(u => !String.IsNullOrEmpty(u) && u.StartsWith(BaseUrl));
+                                    .Select(l => new Link() { Href = l.GetAttributeValue("href", null), Title = l.InnerText.Trim() })
+                                    .Where(l => !string.IsNullOrEmpty(l.Href));
+        }
+
+        private ProcessedPage GetMetaTags(HtmlDocument document, ProcessedPage processedPage)
+        {
+            processedPage.Meta = document.DocumentNode.SelectNodes("//meta")
+                            .Select(e => e.GetAttributeValue("content", null))
+                            .Where(m => !string.IsNullOrEmpty(m));
+
+            return processedPage;
+        }
+
+        private ProcessedPage GetForms(HtmlDocument document, ProcessedPage processedPage)
+        {
+            ICollection<Form> forms = new List<Form>();
+            var formNodes = document.DocumentNode.SelectNodes("//form");
+
+            if (formNodes == null)
+                return processedPage;
+
+            foreach(var formNode in formNodes)
+            {
+                var form = new Form()
+                {
+                    Id = formNode.GetAttributeValue("id", null),
+                    FormElements = new List<FormElement>()
+                };
+
+                var formElementNodes = formNode.SelectNodes("//input");
+
+                foreach(var formElementNode in formElementNodes)
+                {
+                    form.FormElements.Add(new FormElement()
+                    {
+                        Name = formElementNode.GetAttributeValue("name", null),
+                        Placeholder = formElementNode.GetAttributeValue("placeholder", null),
+                        Type = formElementNode.GetAttributeValue("type", null)
+                    });
+                }
+
+                forms.Add(form);
+            }
+
+            processedPage.Forms = forms;
+
+            return processedPage;
         }
     }
 }

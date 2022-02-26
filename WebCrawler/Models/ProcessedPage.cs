@@ -12,5 +12,8 @@ namespace WebCrawler.Models
         public IEnumerable<string> ImageLinks { get; set; }
         public IEnumerable<string> Stylesheets { get; set; }
         public IEnumerable<string> Scripts { get; set; }
+        public IEnumerable<Link> Links { get; set; }
+        public IEnumerable<string> Meta { get; set; }
+        public ICollection<Form> Forms { get; set; }
     }
 }
